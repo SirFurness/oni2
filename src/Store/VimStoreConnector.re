@@ -26,28 +26,27 @@ type commandLineCompletionMeet = {
   position: int,
 };
 
-let getCommandLineCompletionsMeet = (str: string, position: int) => {
+let createCommandLineCompletionsMeet = (str: string, pos: int) => {
+  let len = String.length(str);
+
+  Some({prefix: String.sub(str, pos, len-pos), position: pos});
+}
+
+let getCommandLineCompletionsMeet = (str: string, position: int, lastCompletionMeet: option(commandLineCompletionMeet)) => {
   let len = String.length(str);
 
   if (len == 0 || position < len) {
     None;
   } else {
-    /* Look backwards for '/' or ' ' */
-    let found = ref(false);
-    let meet = ref(position);
-
-    while (meet^ > 0 && ! found^) {
-      let pos = meet^ - 1;
-      let c = str.[pos];
-      if (c == ' ') {
-        found := true;
+    switch(lastCompletionMeet) {
+    | Some(completionMeet) =>
+      if (str.[len - 1] == ' ') {
+        createCommandLineCompletionsMeet(str, position);
       } else {
-        decr(meet);
-      };
+        lastCompletionMeet;
+      }
+    | None => createCommandLineCompletionsMeet(str, position);
     };
-
-    let pos = meet^;
-    Some({prefix: String.sub(str, pos, len - pos), position: pos});
   };
 };
 
@@ -447,16 +446,18 @@ let start =
       let cmdlineType = Vim.CommandLine.getType();
       switch (cmdlineType) {
       | Ex =>
-        let text =
-          switch (Vim.CommandLine.getText()) {
-          | Some(v) => v
-          | None => ""
-          };
-        let position = Vim.CommandLine.getPosition();
-        let meet = getCommandLineCompletionsMeet(text, position);
-        lastCompletionMeet := meet;
+        if (!isCompleting^) {
+          let text =
+            switch (Vim.CommandLine.getText()) {
+            | Some(v) => v
+            | None => ""
+            };
+          let position = Vim.CommandLine.getPosition();
+          let meet = getCommandLineCompletionsMeet(text, position, lastCompletionMeet^);
+          lastCompletionMeet := meet;
 
-        isCompleting^ ? () : checkCommandLineCompletions();
+          checkCommandLineCompletions();
+        }
 
       | SearchForward
       | SearchReverse =>
